@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BPAide</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#2563eb;--blue-dark:#1d4ed8;--blue-50:#eff6ff;--blue-100:#dbeafe;
+  --slate-50:#f8fafc;--slate-100:#f1f5f9;--slate-200:#e2e8f0;
+  --slate-300:#cbd5e1;--slate-400:#94a3b8;--slate-500:#64748b;
+  --slate-600:#475569;--slate-700:#334155;--slate-800:#1e293b;--slate-900:#0f172a;
+  --green:#16a34a;--green-50:#f0fdf4;--green-100:#dcfce7;
+  --red:#dc2626;--red-50:#fff5f5;--red-100:#fee2e2;
+  --amber:#d97706;--amber-50:#fffbeb;--amber-100:#fef3c7;
+  --radius:14px;--radius-sm:8px;--radius-xs:6px;
+}
+body{font-family:'IBM Plex Sans TC',sans-serif;background:#eef2f7;min-height:100vh;color:var(--slate-800)}
+.mono{font-family:'JetBrains Mono',monospace}
+
+/* Shell */
+.shell{max-width:1440px;margin:0 auto;padding:20px 24px}
+
+/* Topbar */
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-mark{width:40px;height:40px;background:var(--slate-900);border-radius:10px;display:flex;align-items:center;justify-content:center}
+.brand-mark svg{width:20px;height:20px;fill:white}
+.brand-text h1{font-size:20px;font-weight:700;letter-spacing:-.5px;color:var(--slate-900)}
+.brand-text h1 span{color:var(--blue)}
+.brand-text p{font-size:11px;color:var(--slate-400);font-family:'JetBrains Mono',monospace;margin-top:1px}
+.topbar-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* API Key bar */
+.apikey-bar{background:white;border:1px solid var(--slate-200);border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.apikey-bar label{font-size:12px;font-weight:700;color:var(--slate-500);white-space:nowrap}
+.apikey-input{flex:1;min-width:200px;background:var(--slate-50);border:1px solid var(--slate-200);border-radius:8px;padding:7px 12px;font-size:13px;font-family:'JetBrains Mono',monospace;outline:none;color:var(--slate-700);transition:border-color .15s}
+.apikey-input:focus{border-color:var(--blue);background:var(--blue-50)}
+.apikey-status{font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;white-space:nowrap}
+.apikey-status.ok{background:var(--green-100);color:var(--green)}
+.apikey-status.empty{background:var(--slate-100);color:var(--slate-400)}
+.apikey-status.error{background:var(--red-100);color:var(--red)}
+
+/* Main grid */
+.main-grid{display:grid;grid-template-columns:5fr 4fr;gap:20px;align-items:start}
+@media(max-width:1050px){.main-grid{grid-template-columns:1fr}}
+
+/* Cards */
+.card{background:white;border-radius:var(--radius);border:1px solid var(--slate-200);overflow:hidden}
+.card-header{padding:12px 16px;border-bottom:1px solid var(--slate-100);display:flex;justify-content:space-between;align-items:center;background:#fafbfc;gap:8px}
+.card-header-title{font-size:13px;font-weight:700;color:var(--slate-700);display:flex;align-items:center;gap:7px}
+.card-header-title svg{width:15px;height:15px;color:var(--blue)}
+
+/* Upload zone */
+.upload-zone{position:relative;min-height:400px;display:flex;align-items:center;justify-content:center;background:#fafcff;border-bottom:1px solid var(--slate-100);overflow:hidden;cursor:pointer;transition:background .15s}
+.upload-zone.drag-over{background:var(--blue-50)}
+.upload-placeholder{text-align:center;padding:40px 20px;pointer-events:none}
+.upload-icon-wrap{width:68px;height:68px;background:var(--blue-50);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+.upload-icon-wrap svg{width:30px;height:30px;color:var(--blue)}
+.upload-placeholder h3{font-size:14px;font-weight:600;color:var(--slate-600);margin-bottom:4px}
+.upload-placeholder p{font-size:12px;color:var(--slate-400)}
+#previewImg{max-width:100%;max-height:500px;display:none;position:relative;z-index:1}
+.hotspot-layer{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5}
+.hotspot{position:absolute;width:24px;height:24px;background:var(--blue);border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:white;transform:translate(-50%,-50%);cursor:pointer;pointer-events:all;box-shadow:0 2px 8px rgba(37,99,235,.4);transition:transform .15s;z-index:10}
+.hotspot:hover{transform:translate(-50%,-50%) scale(1.25)}
+.hotspot.ok{background:var(--green)}
+.hotspot.ng{background:var(--red)}
+
+/* Scanner */
+.scan-overlay{position:absolute;inset:0;display:none;z-index:8;background:rgba(37,99,235,.05)}
+.scan-line{height:2px;background:linear-gradient(90deg,transparent,var(--blue),transparent);position:absolute;width:100%;animation:scanMove 1.6s infinite ease-in-out}
+.scan-border{position:absolute;inset:0;border:2px solid rgba(37,99,235,.3);animation:pulseBorder 1.6s infinite}
+@keyframes scanMove{0%{top:0}50%{top:calc(100% - 2px)}100%{top:0}}
+@keyframes pulseBorder{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* Stats bar */
+.stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px 14px;background:var(--slate-50);border-top:1px solid var(--slate-100)}
+.stat{background:white;border:1px solid var(--slate-200);border-radius:10px;padding:10px 12px}
+.stat-label{font-size:10px;font-weight:700;color:var(--slate-400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.stat-val{font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--slate-800)}
+.stat-val.blue{color:var(--blue)}.stat-val.green{color:var(--green)}.stat-val.red{color:var(--red)}
+
+/* Action bar */
+.action-bar{display:flex;gap:8px;padding:12px 14px;background:var(--slate-50);border-top:1px solid var(--slate-100);flex-wrap:wrap}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;border:none;transition:all .15s;font-family:'IBM Plex Sans TC',sans-serif;white-space:nowrap;text-decoration:none}
+.btn svg{width:14px;height:14px;flex-shrink:0}
+.btn-primary{background:var(--blue);color:white}
+.btn-primary:hover:not(:disabled){background:var(--blue-dark);transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,235,.3)}
+.btn-dark{background:var(--slate-900);color:white}
+.btn-dark:hover:not(:disabled){background:var(--slate-700);transform:translateY(-1px)}
+.btn-outline{background:white;color:var(--slate-700);border:1px solid var(--slate-200)}
+.btn-outline:hover:not(:disabled){background:var(--slate-50)}
+.btn-green{background:var(--green);color:white}
+.btn-green:hover:not(:disabled){background:#15803d}
+.btn-red-outline{background:white;color:var(--red);border:1px solid #fca5a5}
+.btn-red-outline:hover:not(:disabled){background:var(--red-50)}
+.btn-amber{background:var(--amber);color:white}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* FAI Panel */
+.fai-panel{display:flex;flex-direction:column;height:100%;min-height:600px}
+.table-scroll{overflow-y:auto;flex:1;max-height:480px}
+table{width:100%;border-collapse:collapse}
+thead{position:sticky;top:0;background:white;z-index:5}
+thead th{padding:9px 11px;font-size:10px;font-weight:700;color:var(--slate-400);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--slate-100);text-align:left;white-space:nowrap}
+tbody tr{transition:background .1s}
+tbody tr:hover{background:var(--slate-50)}
+tbody td{padding:7px 11px;font-size:12px;color:var(--slate-700);border-bottom:1px solid #f8fafc;vertical-align:middle}
+.balloon{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:white;background:var(--blue);cursor:pointer;flex-shrink:0;transition:transform .15s}
+.balloon:hover{transform:scale(1.2)}
+.balloon.ok{background:var(--green)}.balloon.ng{background:var(--red)}.balloon.warn{background:var(--amber)}
+.dim-input{width:76px;background:transparent;border:1px solid transparent;border-radius:5px;padding:3px 6px;font-size:12px;font-family:'JetBrains Mono',monospace;outline:none;color:var(--slate-700);transition:all .15s}
+.dim-input:focus{border-color:var(--blue);background:var(--blue-50)}
+.tol-badge{font-size:11px;color:var(--slate-400);font-family:'JetBrains Mono',monospace}
+.conv-val{font-size:11px;font-weight:600;color:var(--blue);font-family:'JetBrains Mono',monospace}
+.status-select{background:transparent;border:none;outline:none;font-size:11px;font-weight:700;cursor:pointer;font-family:'IBM Plex Sans TC',sans-serif;border-radius:4px;padding:2px 4px}
+.status-ok{color:var(--green);background:var(--green-100)}
+.status-ng{color:var(--red);background:var(--red-100)}
+.status-pending{color:var(--amber);background:var(--amber-100)}
+.note-input{width:100%;background:transparent;border:1px solid transparent;border-radius:5px;padding:3px 6px;font-size:11px;outline:none;color:var(--slate-500);transition:all .15s}
+.note-input:focus{border-color:var(--slate-300);background:var(--slate-50)}
+.row-del{width:22px;height:22px;background:transparent;border:none;cursor:pointer;color:var(--slate-300);display:flex;align-items:center;justify-content:center;border-radius:4px;transition:all .15s;flex-shrink:0}
+.row-del:hover{background:var(--red-100);color:var(--red)}
+.row-del svg{width:13px;height:13px}
+
+/* Chat / OCR panel */
+.chat-panel{display:flex;flex-direction:column;gap:0}
+.chat-messages{max-height:260px;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:85%;padding:9px 12px;border-radius:10px;font-size:12px;line-height:1.5}
+.msg-user{background:var(--blue);color:white;align-self:flex-end;border-radius:10px 10px 2px 10px}
+.msg-ai{background:var(--slate-100);color:var(--slate-700);align-self:flex-start;border-radius:10px 10px 10px 2px}
+.msg-ai.loading{opacity:.6}
+.chat-input-bar{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--slate-100);background:#fafbfc}
+.chat-input{flex:1;background:white;border:1px solid var(--slate-200);border-radius:8px;padding:8px 12px;font-size:12px;outline:none;font-family:'IBM Plex Sans TC',sans-serif;resize:none;min-height:36px;max-height:80px;transition:border-color .15s}
+.chat-input:focus{border-color:var(--blue)}
+
+/* FAI footer */
+.fai-footer{padding:10px 14px;background:var(--slate-50);border-top:1px solid var(--slate-100);display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+
+/* OCR result box */
+.ocr-box{background:var(--slate-50);border:1px solid var(--slate-200);border-radius:8px;padding:10px 12px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--slate-600);line-height:1.7;max-height:120px;overflow-y:auto;white-space:pre-wrap;margin:0 14px 12px}
+.ocr-box.hidden{display:none}
+
+/* Unit select */
+.unit-select{background:transparent;border:none;outline:none;font-size:12px;font-weight:700;color:var(--blue);cursor:pointer;padding:4px 6px;border-radius:6px;font-family:'IBM Plex Sans TC',sans-serif}
+.unit-select:hover{background:var(--blue-50)}
+
+/* Loading spinner */
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top:2px solid white;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+.spinner.dark{border-color:rgba(37,99,235,.2);border-top-color:var(--blue)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--slate-900);color:white;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:500;opacity:0;transform:translateY(8px);transition:all .25s;pointer-events:none;z-index:9999;max-width:320px}
+#toast.show{opacity:1;transform:translateY(0)}
+
+/* Section divider */
+.section-gap{margin-top:8px}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--slate-200);border-radius:4px}
+
+/* Responsive stats */
+@media(max-width:600px){.stats-bar{grid-template-columns:repeat(2,1fr)}.action-bar{gap:6px}}
+
+/* Print */
+@media print{
+  .topbar,.apikey-bar,.action-bar,.fai-footer,.chat-panel,.upload-zone .scan-overlay,.btn{display:none!important}
+  .card{border:1px solid #ddd;box-shadow:none}
+  .shell{padding:0}
+}
+
+/* Highlight new row */
+@keyframes rowIn{from{background:#dbeafe}to{background:transparent}}
+.row-new{animation:rowIn 1s ease-out}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
+      </div>
+      <div class="brand-text">
+        <h1>BPAide <span>AI</span></h1>
+        <p>Blueprint Analysis · Gemini Vision · LCM v3.0</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-outline" onclick="printReport()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        列印報表
+      </button>
+      <button class="btn btn-outline" onclick="exportExcel()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        匯出 XLSX
+      </button>
+      <label class="btn btn-primary" style="cursor:pointer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        上傳藍圖
+        <input type="file" id="fileInput" style="display:none" accept="image/*,.pdf" onchange="handleUpload(this)">
+      </label>
+    </div>
+  </div>
+
+  <!-- API Key bar -->
+  <div class="apikey-bar">
+    <svg style="width:16px;height:16px;color:#6366f1;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+    <label for="apiKeyInput" style="font-size:12px;font-weight:700;color:var(--slate-500);white-space:nowrap">Gemini API Key</label>
+    <input class="apikey-input" type="password" id="apiKeyInput" placeholder="貼上您的 Gemini API Key (AIza...)" oninput="checkApiKey()">
+    <span class="apikey-status empty" id="apiKeyStatus">未設定</span>
+    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="btn btn-outline" style="font-size:11px;padding:5px 10px;text-decoration:none;white-space:nowrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      取得 API Key
+    </a>
+    <select class="unit-select" id="globalUnit" onchange="batchConvert()">
+      <option value="mm">公制 mm</option>
+      <option value="inch">英制 inch</option>
+    </select>
+    <label class="btn btn-outline" style="cursor:pointer;font-size:11px;padding:6px 10px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      匯入 Excel
+      <input type="file" style="display:none" accept=".xlsx,.xls" onchange="importExcel(this)">
+    </label>
+  </div>
+
+  <!-- Main grid -->
+  <div class="main-grid">
+
+    <!-- Left: Image panel -->
+    <div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            藍圖預覽 · AI 標註
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-outline" style="font-size:11px;padding:5px 10px" onclick="clearAll()">清除</button>
+            <button class="btn btn-dark" id="scanBtn" onclick="runGeminiScan()" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              AI 辨識
+            </button>
+          </div>
+        </div>
+
+        <!-- Upload zone -->
+        <div class="upload-zone" id="uploadZone" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)" onclick="triggerUpload()">
+          <div class="upload-placeholder" id="uploadPlaceholder">
+            <div class="upload-icon-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            </div>
+            <h3>上傳工程藍圖</h3>
+            <p>點擊或拖曳圖片 / PDF 至此處<br>支援 JPG · PNG · WEBP · PDF</p>
+          </div>
+          <img id="previewImg" src="" alt="preview">
+          <div class="hotspot-layer" id="hotspotLayer"></div>
+          <div class="scan-overlay" id="scanOverlay">
+            <div class="scan-line"></div>
+            <div class="scan-border"></div>
+          </div>
+        </div>
+
+        <!-- Stats bar -->
+        <div class="stats-bar">
+          <div class="stat">
+            <div class="stat-label">辨識圈碼</div>
+            <div class="stat-val blue" id="statCount">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">合格 OK</div>
+            <div class="stat-val green" id="statOk">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">不合格 NG</div>
+            <div class="stat-val red" id="statNg">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">待確認</div>
+            <div class="stat-val" id="statPending">0</div>
+          </div>
+        </div>
+
+        <!-- Action bar -->
+        <div class="action-bar">
+          <button class="btn btn-outline" onclick="runOcr()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            OCR 文字提取
+          </button>
+          <button class="btn btn-outline" onclick="batchConvert()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            單位轉換
+          </button>
+          <button class="btn btn-outline" onclick="addManualRow()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            新增列
+          </button>
+          <button class="btn btn-green" onclick="setAllOk()">全部合格</button>
+          <button class="btn btn-red-outline" onclick="clearRows()">清除資料</button>
+        </div>
+      </div>
+
+      <!-- OCR result -->
+      <div class="ocr-box hidden" id="ocrBox"></div>
+    </div>
+
+    <!-- Right: FAI Table + Chat -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+
+      <!-- FAI Table -->
+      <div class="card fai-panel">
+        <div class="card-header">
+          <div class="card-header-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            FAI 自動提取結果
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:11px;color:var(--slate-400)" id="tableRowCount">0 項</span>
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table id="faiTable">
+            <thead>
+              <tr>
+                <th style="width:36px">圈碼</th>
+                <th>設計尺寸</th>
+                <th>公差</th>
+                <th>轉換值</th>
+                <th>備註</th>
+                <th>狀態</th>
+                <th style="width:28px"></th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="fai-footer">
+          <div style="font-size:11px;color:var(--slate-400)">
+            合格率：<span id="passRate" style="font-weight:700;color:var(--slate-700)">—</span>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-outline" style="font-size:11px;padding:5px 10px" onclick="exportPdf()">PDF 匯出</button>
+            <button class="btn btn-green" style="font-size:11px;padding:5px 10px" onclick="exportExcel()">下載報表</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat with Gemini -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            與圖面對話 · Gemini
+          </div>
+          <button class="btn btn-outline" style="font-size:11px;padding:4px 8px" onclick="clearChat()">清除對話</button>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          <div class="msg msg-ai">👋 請先上傳藍圖並設定 Gemini API Key，即可開始詢問圖面相關問題。例如：「這張圖有幾個零件？」「公差最嚴格的尺寸是哪個？」</div>
+        </div>
+        <div class="chat-input-bar">
+          <textarea class="chat-input" id="chatInput" placeholder="輸入問題…（Enter 送出，Shift+Enter 換行）" onkeydown="chatKeydown(event)" rows="1"></textarea>
+          <button class="btn btn-primary" id="chatSendBtn" onclick="sendChat()" disabled style="padding:8px 12px;align-self:flex-end">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+// ─── 載入 @google/genai SDK ───────────────────────────────────────────────────
+import { GoogleGenAI } from 'https://esm.sh/@google/genai@latest';
+window.GoogleGenAI = GoogleGenAI; // 掛到全域供下方 script 使用
+</script>
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let uploadedImageBase64 = null;
+let uploadedImageMime = 'image/jpeg';
+let rowCounter = 0;
+let chatHistory = [];
+
+// ─── API Key ──────────────────────────────────────────────────────────────────
+function getApiKey() { return document.getElementById('apiKeyInput').value.trim(); }
+
+function checkApiKey() {
+  const key = getApiKey();
+  const el = document.getElementById('apiKeyStatus');
+  const scanBtn = document.getElementById('scanBtn');
+  const chatBtn = document.getElementById('chatSendBtn');
+  if (!key) {
+    el.textContent = '未設定'; el.className = 'apikey-status empty';
+    scanBtn.disabled = true; chatBtn.disabled = true;
+  } else if (key.startsWith('AIza') && key.length > 20) {
+    el.textContent = '✓ 已設定'; el.className = 'apikey-status ok';
+    if (uploadedImageBase64) { scanBtn.disabled = false; }
+    chatBtn.disabled = false;
+  } else {
+    el.textContent = '格式異常'; el.className = 'apikey-status error';
+    scanBtn.disabled = true; chatBtn.disabled = true;
+  }
+}
+
+// ─── Upload ───────────────────────────────────────────────────────────────────
+function triggerUpload() {
+  if (!document.getElementById('previewImg').style.display || document.getElementById('previewImg').style.display === 'none') {
+    document.getElementById('fileInput').click();
+  }
+}
+
+function handleUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  loadFile(input.files[0]);
+}
+
+function loadFile(file) {
+  if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+    showToast('僅支援圖片或 PDF 格式'); return;
+  }
+  uploadedImageMime = file.type === 'application/pdf' ? 'image/jpeg' : file.type;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const b64 = e.target.result;
+    uploadedImageBase64 = b64.split(',')[1];
+    const img = document.getElementById('previewImg');
+    img.src = b64;
+    img.style.display = 'block';
+    document.getElementById('uploadPlaceholder').style.display = 'none';
+    document.getElementById('hotspotLayer').innerHTML = '';
+    if (getApiKey().startsWith('AIza')) document.getElementById('scanBtn').disabled = false;
+    showToast('圖面已載入，點擊「AI 辨識」開始分析');
+  };
+  reader.readAsDataURL(file);
+}
+
+function onDragOver(e) { e.preventDefault(); document.getElementById('uploadZone').classList.add('drag-over'); }
+function onDragLeave(e) { document.getElementById('uploadZone').classList.remove('drag-over'); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) loadFile(file);
+}
+
+// ─── Gemini SDK (@google/genai ESM) ──────────────────────────────────────────
+let _ai = null;
+let _lastKey = '';
+
+function getAiClient() {
+  const key = getApiKey();
+  if (!key) throw new Error('請先設定 Gemini API Key');
+  // 如果 key 沒變就重用同一個 client
+  if (_ai && key === _lastKey) return _ai;
+  _ai = new GoogleGenAI({ apiKey: key });
+  _lastKey = key;
+  return _ai;
+}
+
+async function callGemini(parts, temperature = 0.2) {
+  const ai = getAiClient();
+
+  // 將 parts 轉成 SDK 接受的格式
+  const contents = parts.map(p => {
+    if (p.text !== undefined) {
+      return { text: p.text };
+    }
+    if (p.inlineData) {
+      return {
+        inlineData: {
+          mimeType: p.inlineData.mimeType,
+          data: p.inlineData.data
+        }
+      };
+    }
+    return p;
+  });
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents,
+    config: { temperature, maxOutputTokens: 8192 }
+  });
+
+  return response.text ?? '';
+}
+
+// ─── AI Scan ──────────────────────────────────────────────────────────────────
+async function runGeminiScan() {
+  if (!uploadedImageBase64) { showToast('請先上傳藍圖'); return; }
+  const btn = document.getElementById('scanBtn');
+  const overlay = document.getElementById('scanOverlay');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> 辨識中…';
+  overlay.style.display = 'block';
+
+  const prompt = `你是一位專業的工程圖面 FAI（首件檢驗）分析師。請極為仔細地掃描這張工程藍圖的每一個角落，將圖面上【所有】標示的尺寸與圈碼完整提取，絕對不可遺漏任何一個。
+
+核心要求：
+1. 必須提取圖面上【全部】的尺寸標注，無論數量多少（10個、20個、30個以上都要全部列出）
+2. 涵蓋所有類型：直徑(Ø)、半徑(R)、長度、寬度、高度、深度、孔距、角度、螺紋規格、公差帶、表面粗糙度等
+3. 若有圈碼數字請依圈碼排序；若無圈碼則依掃描順序左→右、上→下自動編號
+4. 每個尺寸獨立一列，不可合併或省略
+5. 英制圖面請換算為 mm；角度填入度數數值
+
+請只回傳純 JSON（不含 markdown、不含說明文字）：
+{
+  "items": [
+    {
+      "id": 1,
+      "dim": 15.5,
+      "tol": 0.05,
+      "note": "Ø15.5 孔徑",
+      "x_pct": 25.0,
+      "y_pct": 40.0
+    }
+  ],
+  "summary": "圖面簡述，包含零件名稱、材質、視圖數、辨識尺寸總數（60字以內）"
+}
+
+欄位說明：
+- id：流水編號（整數，從 1 開始，連續不中斷）
+- dim：數值（浮點數）
+- tol：公差（正數；若圖面無標注則預設 0.05）
+- note：盡量保留原始標注文字，如「Ø12H7」「M8×1.25」「120±0.1」
+- x_pct / y_pct：該標注在圖面上的位置百分比（0–100）`;
+
+  try {
+    const text = await callGemini([
+      { inlineData: { mimeType: uploadedImageMime, data: uploadedImageBase64 } },
+      { text: prompt }
+    ]);
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('回傳格式錯誤，請重試');
+    const result = JSON.parse(jsonMatch[0]);
+
+    clearRows();
+    const items = result.items || [];
+    items.forEach((item, i) => {
+      setTimeout(() => {
+        appendRow(item.id ?? (i + 1), item.dim ?? 0, item.tol ?? 0.05, item.note ?? '');
+        addHotspot(item.id ?? (i + 1), item.x_pct ?? 50, item.y_pct ?? 50);
+        updateStats();
+      }, i * 120);
+    });
+
+    if (result.summary) {
+      addChatBubble('ai', `📊 圖面分析完成：${result.summary}`);
+    }
+    setTimeout(updateStats, items.length * 120 + 200);
+    showToast(`✓ 辨識完成，共 ${items.length} 個圈碼`);
+  } catch(err) {
+    showToast('辨識失敗：' + err.message, true);
+    console.error(err);
+  } finally {
+    overlay.style.display = 'none';
+    btn.disabled = false;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> AI 辨識`;
+  }
+}
+
+// ─── OCR ──────────────────────────────────────────────────────────────────────
+async function runOcr() {
+  if (!uploadedImageBase64) { showToast('請先上傳藍圖'); return; }
+  const box = document.getElementById('ocrBox');
+  box.classList.remove('hidden');
+  box.textContent = '⏳ OCR 辨識中…';
+
+  const prompt = '請提取這張工程圖中所有可見的文字資訊，包括標題、標注尺寸、材料規格、公差、表面粗糙度、備注等。請直接列出提取的文字，不需要額外說明。';
+
+  try {
+    const text = await callGemini([
+      { inlineData: { mimeType: uploadedImageMime, data: uploadedImageBase64 } },
+      { text: prompt }
+    ]);
+    box.textContent = text || '（無法提取文字）';
+    showToast('OCR 完成');
+  } catch(err) {
+    box.textContent = '錯誤：' + err.message;
+    showToast('OCR 失敗', true);
+  }
+}
+
+// ─── Chat ──────────────────────────────────────────────────────────────────────
+function chatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  addChatBubble('user', text);
+  const loadId = addChatBubble('ai', '…', true);
+
+  const parts = [];
+  if (uploadedImageBase64) {
+    parts.push({ inlineData: { mimeType: uploadedImageMime, data: uploadedImageBase64 } });
+  }
+
+  // Build context from table
+  const tableData = getTableData();
+  const tableCtx = tableData.length > 0
+    ? `\n目前 FAI 表格資料：${JSON.stringify(tableData)}\n` : '';
+
+  parts.push({ text: `你是 CADASU AI 工程圖分析助手，請以繁體中文回答。${tableCtx}\n用戶問題：${text}` });
+
+  try {
+    const reply = await callGemini(parts, 0.4);
+    updateChatBubble(loadId, reply || '（無回應）');
+  } catch(err) {
+    updateChatBubble(loadId, '⚠️ 錯誤：' + err.message);
+  }
+}
+
+let bubbleCounter = 0;
+function addChatBubble(role, text, isLoading = false) {
+  const id = 'bubble-' + (++bubbleCounter);
+  const el = document.createElement('div');
+  el.className = `msg msg-${role}${isLoading ? ' loading' : ''}`;
+  el.id = id;
+  el.textContent = text;
+  document.getElementById('chatMessages').appendChild(el);
+  el.scrollIntoView({ behavior: 'smooth' });
+  return id;
+}
+function updateChatBubble(id, text) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = text; el.classList.remove('loading'); el.scrollIntoView({ behavior: 'smooth' }); }
+}
+function clearChat() {
+  document.getElementById('chatMessages').innerHTML = '<div class="msg msg-ai">對話已清除。您可以重新提問。</div>';
+  chatHistory = [];
+}
+
+// ─── Table ────────────────────────────────────────────────────────────────────
+function appendRow(id, dim, tol, note = '') {
+  const tbody = document.getElementById('tableBody');
+  const tr = document.createElement('tr');
+  tr.className = 'row-new';
+  tr.dataset.id = id;
+  const convVal = computeConv(dim);
+  tr.innerHTML = `
+    <td><div class="balloon" onclick="scrollToHotspot(${id})">${id}</div></td>
+    <td><input class="dim-input" type="number" step="0.001" value="${dim}" onchange="onDimChange(this)" onblur="updateStats()"></td>
+    <td><span class="tol-badge">±${tol}</span></td>
+    <td><span class="conv-val">${convVal}</span></td>
+    <td><input class="note-input" type="text" value="${note}" placeholder="備註…"></td>
+    <td>
+      <select class="status-select status-pending" onchange="onStatusChange(this)">
+        <option value="pending" selected>待確認</option>
+        <option value="ok">OK 合格</option>
+        <option value="ng">NG 不合格</option>
+      </select>
+    </td>
+    <td><button class="row-del" onclick="deleteRow(this)" title="刪除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button></td>
+  `;
+  tbody.appendChild(tr);
+  updateTableCount();
+}
+
+function computeConv(dim) {
+  const unit = document.getElementById('globalUnit').value;
+  if (unit === 'mm') return (dim / 25.4).toFixed(4) + ' in';
+  return (dim * 25.4).toFixed(3) + ' mm';
+}
+
+function onDimChange(input) {
+  const td = input.closest('tr').querySelector('.conv-val');
+  td.textContent = computeConv(parseFloat(input.value) || 0);
+  updateStats();
+}
+
+function onStatusChange(sel) {
+  const v = sel.value;
+  sel.className = `status-select status-${v}`;
+  const balloon = sel.closest('tr').querySelector('.balloon');
+  balloon.className = 'balloon ' + (v === 'pending' ? '' : v);
+  updateStats();
+}
+
+function deleteRow(btn) {
+  const tr = btn.closest('tr');
+  const id = parseInt(tr.dataset.id);
+  tr.remove();
+  removeHotspot(id);
+  updateStats(); updateTableCount();
+}
+
+function addManualRow() {
+  rowCounter++;
+  appendRow(rowCounter, 0, 0.05, '');
+  updateStats();
+}
+
+function clearRows() {
+  document.getElementById('tableBody').innerHTML = '';
+  document.getElementById('hotspotLayer').innerHTML = '';
+  rowCounter = 0; updateStats(); updateTableCount();
+}
+
+function setAllOk() {
+  document.querySelectorAll('#tableBody .status-select').forEach(sel => {
+    sel.value = 'ok'; sel.className = 'status-select status-ok';
+    sel.closest('tr').querySelector('.balloon').className = 'balloon ok';
+  });
+  updateStats();
+}
+
+function getTableData() {
+  const rows = document.querySelectorAll('#tableBody tr');
+  return Array.from(rows).map(tr => ({
+    id: tr.dataset.id,
+    dim: tr.querySelector('.dim-input')?.value,
+    tol: tr.querySelector('.tol-badge')?.textContent,
+    note: tr.querySelector('.note-input')?.value,
+    status: tr.querySelector('.status-select')?.value
+  }));
+}
+
+function updateStats() {
+  const rows = document.querySelectorAll('#tableBody tr');
+  let ok = 0, ng = 0, pending = 0;
+  rows.forEach(tr => {
+    const v = tr.querySelector('.status-select')?.value;
+    if (v === 'ok') ok++;
+    else if (v === 'ng') ng++;
+    else pending++;
+  });
+  document.getElementById('statCount').textContent = rows.length;
+  document.getElementById('statOk').textContent = ok;
+  document.getElementById('statNg').textContent = ng;
+  document.getElementById('statPending').textContent = pending;
+  const total = ok + ng;
+  document.getElementById('passRate').textContent = total > 0 ? Math.round(ok / total * 100) + '%' : '—';
+}
+
+function updateTableCount() {
+  const n = document.querySelectorAll('#tableBody tr').length;
+  document.getElementById('tableRowCount').textContent = n + ' 項';
+}
+
+// ─── Unit conversion ──────────────────────────────────────────────────────────
+function batchConvert() {
+  document.querySelectorAll('#tableBody tr').forEach(tr => {
+    const dim = parseFloat(tr.querySelector('.dim-input')?.value || 0);
+    const cv = tr.querySelector('.conv-val');
+    if (cv) cv.textContent = computeConv(dim);
+  });
+}
+
+// ─── Hotspots ─────────────────────────────────────────────────────────────────
+function addHotspot(id, xPct, yPct) {
+  const layer = document.getElementById('hotspotLayer');
+  const el = document.createElement('div');
+  el.className = 'hotspot';
+  el.dataset.id = id;
+  el.textContent = id;
+  el.style.left = xPct + '%';
+  el.style.top = yPct + '%';
+  el.onclick = () => scrollToBalloon(id);
+  layer.appendChild(el);
+}
+
+function removeHotspot(id) {
+  const el = document.querySelector(`.hotspot[data-id="${id}"]`);
+  if (el) el.remove();
+}
+
+function scrollToHotspot(id) {
+  const el = document.querySelector(`.hotspot[data-id="${id}"]`);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function scrollToBalloon(id) {
+  const balloon = document.querySelector(`.balloon`);
+  if (balloon) balloon.closest('tr')?.scrollIntoView({ behavior: 'smooth' });
+}
+
+// ─── Import / Export ──────────────────────────────────────────────────────────
+function importExcel(input) {
+  if (!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      clearRows();
+      json.forEach((row, i) => {
+        appendRow(row['圈碼'] || row['id'] || (i + 1),
+                  row['設計尺寸'] || row['dim'] || 0,
+                  row['公差'] || row['tol'] || 0.05,
+                  row['備註'] || row['note'] || '');
+      });
+      updateStats();
+      showToast(`匯入 ${json.length} 筆資料完成`);
+    } catch(err) { showToast('匯入失敗：' + err.message, true); }
+  };
+  reader.readAsArrayBuffer(input.files[0]);
+  input.value = '';
+}
+
+function exportExcel() {
+  const rows = getTableData();
+  if (rows.length === 0) { showToast('尚無資料可匯出'); return; }
+  const data = rows.map(r => ({
+    '圈碼': r.id, '設計尺寸': r.dim, '公差': r.tol,
+    '轉換值': computeConv(parseFloat(r.dim)), '備註': r.note, '狀態': r.status === 'ok' ? '合格' : r.status === 'ng' ? '不合格' : '待確認'
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'FAI Report');
+  XLSX.writeFile(wb, `CADASU_FAI_${new Date().toISOString().slice(0,10)}.xlsx`);
+  showToast('XLSX 已下載');
+}
+
+function exportPdf() { window.print(); }
+function printReport() { window.print(); }
+
+function clearAll() {
+  clearRows();
+  document.getElementById('previewImg').style.display = 'none';
+  document.getElementById('uploadPlaceholder').style.display = '';
+  document.getElementById('scanBtn').disabled = true;
+  uploadedImageBase64 = null;
+  document.getElementById('ocrBox').classList.add('hidden');
+  document.getElementById('ocrBox').textContent = '';
+  rowCounter = 0;
+  updateStats();
+  showToast('已清除所有資料');
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = isError ? 'var(--red)' : 'var(--slate-900)';
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
